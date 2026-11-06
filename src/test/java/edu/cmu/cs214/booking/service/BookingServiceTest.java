@@ -50,6 +50,10 @@ class BookingServiceTest {
         BookingResult r = svc.book(roomB, bob, new TimeInterval(600, 660));
         assertInstanceOf(BookingResult.Confirmed.class, r);
     }
+    // lab1:
+    // [ERROR] Failures:
+    // [ERROR]   BookingServiceTest.sameSlotInDifferentRoomsAreBothConfirmed:51 Unexpected type, expected: <edu.cmu.cs214.booking.service.BookingResult.Confirmed> but was: <edu.cmu.cs214.booking.service.BookingResult.Waitlisted>
+    // [
 
     @Test
     void listBookingsReturnsConfirmedBookings() {
