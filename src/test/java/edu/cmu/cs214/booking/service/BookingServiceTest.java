@@ -45,6 +45,12 @@ class BookingServiceTest {
 
     @Test
     void sameSlotInDifferentRoomsAreBothConfirmed() {
+        // Agent:
+        // 测试用例预期行为：
+        // 在测试 sameSlotInDifferentRoomsAreBothConfirmed 中：
+        // 首先在 roomA 预订了时间段 [600, 660]；
+        // 接着在另一个不同房间 roomB 预订相同的时间段 [600, 660]。
+        // 因为是两个不同的房间，彼此时间段并不冲突，预期两次预订都应成功确认（即期望返回类型为 BookingResult.Confirmed）。
         BookingService svc = newService();
         svc.book(roomA, alice, new TimeInterval(600, 660));
         BookingResult r = svc.book(roomB, bob, new TimeInterval(600, 660));

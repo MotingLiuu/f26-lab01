@@ -26,6 +26,9 @@ public class InMemoryBookingStore implements BookingStore {
     @Override
     public List<Booking> bookingsForRoom(Room room) {
         // The bookings held for a single room.
+        // lab1:
+        // 错误的原因是这里返回了整个 bookings 没有用 room 筛选真正对应于 room 的部分
+        // It should return only the bookings belonging to the given room.
         return List.copyOf(bookings);
     }
 
