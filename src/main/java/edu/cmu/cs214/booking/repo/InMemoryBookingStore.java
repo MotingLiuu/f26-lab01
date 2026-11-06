@@ -29,7 +29,7 @@ public class InMemoryBookingStore implements BookingStore {
         // lab1:
         // 错误的原因是这里返回了整个 bookings 没有用 room 筛选真正对应于 room 的部分
         // It should return only the bookings belonging to the given room.
-        return List.copyOf(bookings);
+        return bookings.stream().filter(b -> b.room().id().equals(room.id())).toList();
     }
 
     @Override
