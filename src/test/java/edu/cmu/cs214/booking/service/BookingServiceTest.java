@@ -7,6 +7,7 @@ import edu.cmu.cs214.booking.domain.Booking;
 import edu.cmu.cs214.booking.domain.Room;
 import edu.cmu.cs214.booking.domain.TimeInterval;
 import edu.cmu.cs214.booking.domain.User;
+import edu.cmu.cs214.booking.domain.WaitlistEntry;
 import edu.cmu.cs214.booking.repo.InMemoryBookingStore;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -93,6 +94,71 @@ class BookingServiceTest {
         Booking replacement = assertInstanceOf(BookingResult.Confirmed.class,
                 svc.book(roomA, bob, interval)).booking();
         assertEquals(List.of(other, replacement), store.bookingsForRoom(roomA));
+    }
+
+    @Test
+    void cancelBookingSkipsConflictingWaitlistEntry() {
+        InMemoryBookingStore store = new InMemoryBookingStore();
+        BookingService svc = new BookingService(store);
+        Booking cancelled = assertInstanceOf(BookingResult.Confirmed.class,
+                svc.book(roomA, alice, new TimeInterval(600, 660))).booking();
+        Booking remaining = assertInstanceOf(BookingResult.Confirmed.class,
+                svc.book(roomA, alice, new TimeInterval(660, 720))).booking();
+        User carol = new User("u3", "Carol");
+        assertInstanceOf(BookingResult.Waitlisted.class,
+                svc.book(roomA, bob, new TimeInterval(630, 690)));
+        assertInstanceOf(BookingResult.Waitlisted.class,
+                svc.book(roomA, carol, new TimeInterval(600, 660)));
+        WaitlistEntry conflicting = store.waitlistForRoom(roomA).get(0);
+
+        svc.cancelBooking(cancelled.id());
+
+        List<Booking> bookings = store.bookingsForRoom(roomA);
+        assertEquals(2, bookings.size());
+        assertEquals(remaining, bookings.get(0));
+        assertEquals(carol, bookings.get(1).user());
+        assertEquals(new TimeInterval(600, 660), bookings.get(1).interval());
+        assertEquals(List.of(conflicting), store.waitlistForRoom(roomA));
+    }
+
+    @Test
+    void cancelBookingChecksWaitersInSequenceOrder() {
+        InMemoryBookingStore store = new InMemoryBookingStore();
+        BookingService svc = new BookingService(store);
+        TimeInterval interval = new TimeInterval(600, 660);
+        Booking cancelled = assertInstanceOf(BookingResult.Confirmed.class,
+                svc.book(roomA, alice, interval)).booking();
+        User carol = new User("u3", "Carol");
+        WaitlistEntry later = new WaitlistEntry("later", roomA, bob, interval, 2);
+        WaitlistEntry earlier = new WaitlistEntry("earlier", roomA, carol, interval, 1);
+        store.addWaitlistEntry(later);
+        store.addWaitlistEntry(earlier);
+
+        svc.cancelBooking(cancelled.id());
+
+        assertEquals(1, store.bookingsForRoom(roomA).size());
+        assertEquals(carol, store.bookingsForRoom(roomA).get(0).user());
+        assertEquals(List.of(later), store.waitlistForRoom(roomA));
+    }
+
+    @Test
+    void cancelBookingWithNoFittingWaitersPromotesNoOne() {
+        InMemoryBookingStore store = new InMemoryBookingStore();
+        BookingService svc = new BookingService(store);
+        Booking cancelled = assertInstanceOf(BookingResult.Confirmed.class,
+                svc.book(roomA, alice, new TimeInterval(600, 660))).booking();
+        Booking remaining = assertInstanceOf(BookingResult.Confirmed.class,
+                svc.book(roomA, alice, new TimeInterval(660, 720))).booking();
+        assertInstanceOf(BookingResult.Waitlisted.class,
+                svc.book(roomA, bob, new TimeInterval(630, 690)));
+        assertInstanceOf(BookingResult.Waitlisted.class,
+                svc.book(roomA, bob, new TimeInterval(660, 720)));
+        List<WaitlistEntry> waiters = store.waitlistForRoom(roomA);
+
+        svc.cancelBooking(cancelled.id());
+
+        assertEquals(List.of(remaining), store.bookingsForRoom(roomA));
+        assertEquals(waiters, store.waitlistForRoom(roomA));
     }
 
     @Test
