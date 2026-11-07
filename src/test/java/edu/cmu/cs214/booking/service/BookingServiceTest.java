@@ -142,6 +142,48 @@ class BookingServiceTest {
     }
 
     @Test
+    void cancelBookingPromotesEarliestWaitlistEntry() {
+        InMemoryBookingStore store = new InMemoryBookingStore();
+        BookingService svc = new BookingService(store);
+        TimeInterval interval = new TimeInterval(600, 660);
+        Booking cancelled = assertInstanceOf(BookingResult.Confirmed.class,
+                svc.book(roomA, alice, interval)).booking();
+        User carol = new User("u3", "Carol");
+        assertInstanceOf(BookingResult.Waitlisted.class, svc.book(roomA, bob, interval));
+        assertInstanceOf(BookingResult.Waitlisted.class, svc.book(roomA, carol, interval));
+        WaitlistEntry later = store.waitlistForRoom(roomA).get(1);
+
+        svc.cancelBooking(cancelled.id());
+
+        assertEquals(List.of(new Booking("b2", roomA, bob, interval)), store.bookingsForRoom(roomA));
+        assertEquals(List.of(later), store.waitlistForRoom(roomA));
+    }
+
+    @Test
+    void cancelBookingPromotesAtMostOne() {
+        InMemoryBookingStore store = new InMemoryBookingStore();
+        BookingService svc = new BookingService(store);
+        Booking cancelled = assertInstanceOf(BookingResult.Confirmed.class,
+                svc.book(roomA, alice, new TimeInterval(600, 720))).booking();
+        User carol = new User("u3", "Carol");
+        TimeInterval firstInterval = new TimeInterval(600, 660);
+        TimeInterval secondInterval = new TimeInterval(660, 720);
+        assertInstanceOf(BookingResult.Waitlisted.class, svc.book(roomA, bob, firstInterval));
+        assertInstanceOf(BookingResult.Waitlisted.class, svc.book(roomA, carol, secondInterval));
+        WaitlistEntry later = store.waitlistForRoom(roomA).get(1);
+
+        svc.cancelBooking(cancelled.id());
+
+        assertEquals(List.of(new Booking("b2", roomA, bob, firstInterval)), store.bookingsForRoom(roomA));
+        assertEquals(List.of(later), store.waitlistForRoom(roomA));
+
+        svc.cancelBooking("b2");
+
+        assertEquals(List.of(new Booking("b3", roomA, carol, secondInterval)), store.bookingsForRoom(roomA));
+        assertEquals(List.of(), store.waitlistForRoom(roomA));
+    }
+
+    @Test
     void cancelBookingWithNoFittingWaitersPromotesNoOne() {
         InMemoryBookingStore store = new InMemoryBookingStore();
         BookingService svc = new BookingService(store);
