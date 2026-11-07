@@ -1,6 +1,7 @@
 package edu.cmu.cs214.booking.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 import edu.cmu.cs214.booking.domain.Booking;
@@ -201,6 +202,43 @@ class BookingServiceTest {
 
         assertEquals(List.of(remaining), store.bookingsForRoom(roomA));
         assertEquals(waiters, store.waitlistForRoom(roomA));
+    }
+
+    @Test
+    void cancellationAndPromotionPreserveNonOverlappingBookings() {
+        InMemoryBookingStore store = new InMemoryBookingStore();
+        BookingService svc = new BookingService(store);
+        Booking first = assertInstanceOf(BookingResult.Confirmed.class,
+                svc.book(roomA, alice, new TimeInterval(600, 660))).booking();
+        Booking second = assertInstanceOf(BookingResult.Confirmed.class,
+                svc.book(roomA, alice, new TimeInterval(660, 720))).booking();
+        assertInstanceOf(BookingResult.Waitlisted.class,
+                svc.book(roomA, bob, new TimeInterval(630, 690)));
+        User carol = new User("u3", "Carol");
+        assertInstanceOf(BookingResult.Waitlisted.class,
+                svc.book(roomA, carol, new TimeInterval(600, 660)));
+
+        assertNoOverlappingBookings(store.bookingsForRoom(roomA));
+        svc.cancelBooking(first.id());
+        assertNoOverlappingBookings(store.bookingsForRoom(roomA));
+        svc.cancelBooking(second.id());
+        assertNoOverlappingBookings(store.bookingsForRoom(roomA));
+        assertEquals(1, store.bookingsForRoom(roomA).size());
+        assertEquals(1, store.waitlistForRoom(roomA).size());
+        Booking promoted = store.bookingsForRoom(roomA).get(0);
+        assertEquals(carol, promoted.user());
+        svc.cancelBooking(promoted.id());
+        assertNoOverlappingBookings(store.bookingsForRoom(roomA));
+        assertEquals(bob, store.bookingsForRoom(roomA).get(0).user());
+        assertEquals(List.of(), store.waitlistForRoom(roomA));
+    }
+
+    private void assertNoOverlappingBookings(List<Booking> bookings) {
+        for (int i = 0; i < bookings.size(); i++) {
+            for (int j = i + 1; j < bookings.size(); j++) {
+                assertFalse(bookings.get(i).interval().overlaps(bookings.get(j).interval()));
+            }
+        }
     }
 
     @Test
