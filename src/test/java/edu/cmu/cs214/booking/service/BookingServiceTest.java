@@ -3,10 +3,12 @@ package edu.cmu.cs214.booking.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
+import edu.cmu.cs214.booking.domain.Booking;
 import edu.cmu.cs214.booking.domain.Room;
 import edu.cmu.cs214.booking.domain.TimeInterval;
 import edu.cmu.cs214.booking.domain.User;
 import edu.cmu.cs214.booking.repo.InMemoryBookingStore;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class BookingServiceTest {
@@ -60,6 +62,38 @@ class BookingServiceTest {
     // [ERROR] Failures:
     // [ERROR]   BookingServiceTest.sameSlotInDifferentRoomsAreBothConfirmed:51 Unexpected type, expected: <edu.cmu.cs214.booking.service.BookingResult.Confirmed> but was: <edu.cmu.cs214.booking.service.BookingResult.Waitlisted>
     // [
+
+    @Test
+    void cancelNonExistentBookingDoesNothing() {
+        InMemoryBookingStore store = new InMemoryBookingStore();
+        BookingService svc = new BookingService(store);
+        Booking first = assertInstanceOf(BookingResult.Confirmed.class,
+                svc.book(roomA, alice, new TimeInterval(600, 660))).booking();
+        Booking second = assertInstanceOf(BookingResult.Confirmed.class,
+                svc.book(roomB, bob, new TimeInterval(600, 660))).booking();
+
+        svc.cancelBooking("missing");
+
+        assertEquals(List.of(first, second), store.allBookings());
+    }
+
+    @Test
+    void cancelBookingFreesSlot() {
+        InMemoryBookingStore store = new InMemoryBookingStore();
+        BookingService svc = new BookingService(store);
+        TimeInterval interval = new TimeInterval(600, 660);
+        Booking original = assertInstanceOf(BookingResult.Confirmed.class,
+                svc.book(roomA, alice, interval)).booking();
+        Booking other = assertInstanceOf(BookingResult.Confirmed.class,
+                svc.book(roomA, alice, new TimeInterval(660, 720))).booking();
+
+        svc.cancelBooking(original.id());
+
+        assertEquals(List.of(other), store.bookingsForRoom(roomA));
+        Booking replacement = assertInstanceOf(BookingResult.Confirmed.class,
+                svc.book(roomA, bob, interval)).booking();
+        assertEquals(List.of(other, replacement), store.bookingsForRoom(roomA));
+    }
 
     @Test
     void listBookingsReturnsConfirmedBookings() {
